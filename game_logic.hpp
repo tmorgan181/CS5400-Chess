@@ -807,24 +807,17 @@ std::vector<std::string> Generate_Player_Moves(const Gamestate& g, const char pl
 
 	// Simulate every move we have generated thus far to see if any of them will put the king in danger
 	Gamestate sim_state(g);
-
-	std::cout << "Starting sim state:\n";
-	sim_state.Print();
+	int king_index;
 
 	// Make a copy of the valid moves so we can iterate and delete simultaneously
 	std::vector<std::string> iter_moves = valid_moves;
 
 	for (int i = 0; i < iter_moves.size(); i++)
 	{
-		std::cout << "Checking move " << iter_moves[i] << std::endl;
-		std::cout << "\n";
-
 		// Simulate the move from the current state
 		sim_state = Simulate_Move(g, iter_moves[i]);
-		// sim_state.Print();
 
 		// Find this player's king's square index
-		int king_index;
 		for (int j = 0; j < sim_state.board.size(); j++)
 		{
 			if ((sim_state.board[j] == 'K' && player_color == 'w') || (sim_state.board[j] == 'k' && player_color == 'b'))
@@ -832,14 +825,11 @@ std::vector<std::string> Generate_Player_Moves(const Gamestate& g, const char pl
 				king_index = j;
 			}
 		}
-		// std::cout << "king index is " << king_index << std::endl;
-
 
 		// Check if the king's square is under attack in the new state
 		if (Square_Under_Attack(sim_state, king_index, player_color))
 		{
 			// The king is under attack, so this move is not valid - remove it
-			std::cout << "Removing move " << iter_moves[i] << " because it endangers the king.\n";
 			valid_moves.erase(std::remove(valid_moves.begin(), valid_moves.end(), iter_moves[i]), valid_moves.end());
 		}
 	}

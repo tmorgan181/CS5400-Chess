@@ -25,9 +25,9 @@ int main()
 
 	std::string castl = "8/8/8/8/8/5q2/8/R3K2R w KQkq - 0 1";
 
-	std::string check = "8/8/8/8/8/4q3/8/4K3 w - - 0 1";
+	std::string check = "8/8/8/8/8/5q2/R7/5B1K w - - 0 1";
 
-	Gamestate from_fen(check);
+	Gamestate from_fen(start_fen);
 	from_fen.Print();
 
 
@@ -47,11 +47,11 @@ int main()
 		std::cout << all_white[i] << "\n";
 	}
 
-	// std::vector<std::string> all_black = Generate_Player_Moves(from_fen, 'b');
-	// for (int i = 0; i < all_black.size(); i++)
-	// {
-	// 	std::cout << all_black[i] << "\n";
-	// }
+	std::vector<std::string> all_black = Generate_Player_Moves(from_fen, 'b');
+	for (int i = 0; i < all_black.size(); i++)
+	{
+		std::cout << all_black[i] << "\n";
+	}
 
 
 	// std::vector<std::string> a2_moves = Generate_Piece_Moves(from_fen, Convert_to_Index("b5"), false);
