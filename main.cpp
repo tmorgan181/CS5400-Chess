@@ -46,12 +46,14 @@ int main()
 	{
 		std::cout << all_white[i] << "\n";
 	}
+	std::cout << std::endl;
 
 	std::vector<std::string> all_black = Generate_Player_Moves(from_fen, 'b');
 	for (int i = 0; i < all_black.size(); i++)
 	{
 		std::cout << all_black[i] << "\n";
 	}
+	std::cout << std::endl;
 
 
 	// std::vector<std::string> a2_moves = Generate_Piece_Moves(from_fen, Convert_to_Index("b5"), false);
@@ -69,6 +71,9 @@ int main()
 	// Gamestate n_stt = Simulate_Move(n_st, "e4e2");
 	// n_stt.Print();
 
+
+	std::cout << "Random white move: " << Get_Random_Move(all_white) << "\n";
+	std::cout << "Random black move: " << Get_Random_Move(all_black) << "\n";
 
 	return 0;
 }

@@ -4,7 +4,7 @@
 #include "gamestate.hpp"
 
 #include <vector>
-#include <cstdlib> // isupper, islower
+#include <cstdlib> // isupper, islower, rand, time
 #include <algorithm> // std::remove
 
 
@@ -68,6 +68,9 @@ bool Square_Under_Attack(const Gamestate& g, const int index, const char player_
 
 // Given some gamestate and a move to make, update the gamestate accordingly
 Gamestate Simulate_Move(const Gamestate& g, const std::string move);
+
+// Given a list of possible moves, select one at random and return it
+std::string Get_Random_Move(const std::vector<std::string> all_moves);
 
 
 //////// Function Implementations ////////
@@ -950,5 +953,20 @@ Gamestate Simulate_Move(const Gamestate& g, const std::string move)
 
 	return new_state;
 }
+
+std::string Get_Random_Move(const std::vector<std::string> all_moves)
+{
+	// Seed random
+	srand(time(NULL));
+
+	// Get a random number between 0 and (length - 1)
+	int i = rand() % all_moves.size();
+
+	// Return the move at random index i
+	return all_moves[i];
+
+
+}
+
 
 #endif
