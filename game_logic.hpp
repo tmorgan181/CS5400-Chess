@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <cstdlib> // isupper, islower
+#include <algorithm> // std::remove
 
 
 // These values determine what index offset to add for each adjacent square
@@ -36,23 +37,37 @@ int Convert_to_Index(const std::string square);
 // Given some game state, generate all valid moves for the current player color
 std::vector<std::string> Generate_Player_Moves(const Gamestate& g, const char player_color);
 
-// Generate all possible valid pawn moves from the current square
-std::vector<std::string> Generate_Pawn_Moves(const Gamestate& g, const int index);
+// Generate all possible pawn moves from the current square. When "ignore_non_attacks" == true,
+// straight-line and en passant pawn moves are not returned.
+std::vector<std::string> Generate_Pawn_Moves(const Gamestate& g, const int index, const bool ignore_non_attacks);
 
-// Generate all possible valid bishop moves from the current square
+// Generate all possible bishop moves from the current square
 std::vector<std::string> Generate_Bishop_Moves(const Gamestate& g, const int index);
 
-// Generate all possible valid rook moves from the current square
+// Generate all possible rook moves from the current square
 std::vector<std::string> Generate_Rook_Moves(const Gamestate& g, const int index);
 
-// Generate all possible valid knight moves from the current square
+// Generate all possible knight moves from the current square
 std::vector<std::string> Generate_Knight_Moves(const Gamestate& g, const int index);
 
-// Generate all possible valid queen moves from the current square
+// Generate all possible queen moves from the current square
 std::vector<std::string> Generate_Queen_Moves(const Gamestate& g, const int index);
 
-// Generate all possible valid king moves from the current square
-std::vector<std::string> Generate_King_Moves(const Gamestate& g, const int index);
+// Generate all possible king moves from the current square. When "ignore_non_attacks" == true,
+// the possible castling moves are not returned
+std::vector<std::string> Generate_King_Moves(const Gamestate& g, const int index, const bool ignore_non_attacks);
+
+// Given some gamestate, and a square index that contains a piece, determine every possible
+// move that piece can make. When "ignore_non_attacks" == true, straight-line pawn moves, en passant,
+// and castling moves are not returned
+std::vector<std::string> Generate_Piece_Moves(const Gamestate& g, const int index, const bool ignore_non_attacks);
+
+// Given some gamestate, some square index, and the current player's color, determine
+// if that square is under attack by any opposing piece
+bool Square_Under_Attack(const Gamestate& g, const int index, const char player_color);
+
+// Given some gamestate and a move to make, update the gamestate accordingly
+Gamestate Simulate_Move(const Gamestate& g, const std::string move);
 
 
 //////// Function Implementations ////////
@@ -73,7 +88,7 @@ int Convert_to_Index(const std::string square)
 	return ((square[1] - 49) * 8) + (square[0] - 97);
 }
 
-std::vector<std::string> Generate_Pawn_Moves(const Gamestate& g, const int index)
+std::vector<std::string> Generate_Pawn_Moves(const Gamestate& g, const int index, const bool ignore_non_attacks)
 {
 	std::vector<std::string> pawn_moves;
 
@@ -83,32 +98,73 @@ std::vector<std::string> Generate_Pawn_Moves(const Gamestate& g, const int index
 	// If the pawn is white
 	if (g.board[index] == 'P')
 	{
-		// If rank < 7 and there is no piece N of the pawn
-		if (index < 48 && g.board[index + N] == ' ')
+		// If straight moves and en passant are not ignored
+		if (!ignore_non_attacks)
 		{
-			// Add the N move
-			pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + N));
-
-			// If the pawn is on the 2nd rank, and there is no piece N * 2 of the pawn
-			if (curr_square[1] == '2' && g.board[index + N*2] == ' ')
+			// If rank < 7 and there is no piece N of the pawn
+			if (index < 48 && g.board[index + N] == ' ')
 			{
-				// Add the N*2 move
-				pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + N*2));
+				// Add the N move
+				pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + N));
+
+				// If the pawn is on the 2nd rank, and there is no piece N * 2 of the pawn
+				if (curr_square[1] == '2' && g.board[index + N*2] == ' ')
+				{
+					// Add the N*2 move
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + N*2));
+				}
+			}
+
+			// If rank == 7 and there is no piece N of the pawn
+			if (curr_square[1] == '7' && g.board[index + N] == ' ')
+			{
+				// Add all possible promotion moves
+				pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + N) + 'q');
+				pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + N) + 'n');
+				pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + N) + 'r');
+				pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + N) + 'b');
+			}
+
+			// If there is an en passant target NW of the pawn (and NW is in bounds)
+			if (index % 8 != 0 && g.en_passant_target == Convert_to_Algebraic(index + NW))
+			{
+				// If the pawn started on rank 7
+				if (curr_square[1] == '7')
+				{
+					// Add the NW capture plus any promotion
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + NW) + 'q');
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + NW) + 'n');
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + NW) + 'r');
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + NW) + 'b');
+				}
+				// Else just add the NW capture
+				else
+				{
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + NW));
+				}
+			}
+			// Repeat for NE
+			if (index % 8 != 7 && g.en_passant_target == Convert_to_Algebraic(index + NE))
+			{
+				// If the pawn started on rank 7
+				if (curr_square[1] == '7')
+				{
+					// Add the NE capture plus any promotion
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + NE) + 'q');
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + NE) + 'n');
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + NE) + 'r');
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + NE) + 'b');
+				}
+				// Else just add the NE capture
+				else
+				{
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + NE));
+				}
 			}
 		}
 
-		// If rank == 7 and there is no piece N of the pawn
-		if (curr_square[1] == '7' && g.board[index + N] == ' ')
-		{
-			// Add all possible promotion moves
-			pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + N) + 'q');
-			pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + N) + 'n');
-			pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + N) + 'r');
-			pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + N) + 'b');
-		}
-
-		// If there is an enemy piece or en passant target NW of the pawn (and NW is in bounds)
-		if (index % 8 != 0 && (islower(g.board[index + NW]) || g.en_passant_target == Convert_to_Algebraic(index + NW)))
+		// If there is an enemy piece NW of the pawn (and NW is in bounds)
+		if (index % 8 != 0 && islower(g.board[index + NW]))
 		{
 			// If the pawn started on rank 7
 			if (curr_square[1] == '7')
@@ -126,7 +182,7 @@ std::vector<std::string> Generate_Pawn_Moves(const Gamestate& g, const int index
 			}
 		}
 		// Repeat for NE
-		if (index % 8 != 7 && (islower(g.board[index + NE]) || g.en_passant_target == Convert_to_Algebraic(index + NE)))
+		if (index % 8 != 7 && islower(g.board[index + NE]))
 		{
 			// If the pawn started on rank 7
 			if (curr_square[1] == '7')
@@ -148,32 +204,74 @@ std::vector<std::string> Generate_Pawn_Moves(const Gamestate& g, const int index
 	// Else if the pawn is black
 	else if (g.board[index] == 'p')
 	{
-		// If rank > 2 and there is no piece S of the pawn
-		if (index > 15 && g.board[index + S] == ' ')
+		// If straight moves and en passant are not ignored
+		if (!ignore_non_attacks)
 		{
-			// Add the S move
-			pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + S));
-
-			// If the pawn is on the 7th rank, and there is no piece S * 2 of the pawn
-			if (curr_square[1] == '7' && g.board[index + S*2] == ' ')
+			// If rank > 2 and there is no piece S of the pawn
+			if (index > 15 && g.board[index + S] == ' ')
 			{
-				// Add the S*2 move
-				pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + S*2));
+				// Add the S move
+				pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + S));
+
+				// If the pawn is on the 7th rank, and there is no piece S * 2 of the pawn
+				if (curr_square[1] == '7' && g.board[index + S*2] == ' ')
+				{
+					// Add the S*2 move
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + S*2));
+				}
+			}
+
+			// If rank == 2 and there is no piece S of the pawn
+			if (curr_square[1] == '2' && g.board[index + S] == ' ')
+			{
+				// Add all possible promotion moves
+				pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + S) + 'q');
+				pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + S) + 'n');
+				pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + S) + 'r');
+				pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + S) + 'b');
+			}
+	
+			// If there is an en passant target SW of the pawn and SW is in bounds
+			if (index % 8 != 0 && g.en_passant_target == Convert_to_Algebraic(index + SW))
+			{
+				// If the pawn started on rank 2
+				if (curr_square[1] == '2')
+				{
+					// Add the SW capture plus any promotion
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + SW) + 'q');
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + SW) + 'n');
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + SW) + 'r');
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + SW) + 'b');
+				}
+				// Else just add the SW capture
+				else
+				{
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + SW));
+				}
+			}
+			// Repeat for SE
+			if (index % 8 != 7 && g.en_passant_target == Convert_to_Algebraic(index + SE))
+			{
+				// If the pawn started on rank 2
+				if (curr_square[1] == '2')
+				{
+					// Add the SE capture plus any promotion
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + SE) + 'q');
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + SE) + 'n');
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + SE) + 'r');
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + SE) + 'b');
+				}
+				// Else just add the SE capture
+				else
+				{
+					pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + SE));
+				}
 			}
 		}
 
-		// If rank == 2 and there is no piece S of the pawn
-		if (curr_square[1] == '2' && g.board[index + S] == ' ')
-		{
-			// Add all possible promotion moves
-			pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + S) + 'q');
-			pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + S) + 'n');
-			pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + S) + 'r');
-			pawn_moves.push_back(curr_square + Convert_to_Algebraic(index + S) + 'b');
-		}
 
-		// If there is an enemy piece or en passant target SW of the pawn (and SW is in bounds)
-		if (index % 8 != 0 && (isupper(g.board[index + SW]) || g.en_passant_target == Convert_to_Algebraic(index + SW)))
+		// If there is an enemy piece SW of the pawn (and SW is in bounds)
+		if (index % 8 != 0 && isupper(g.board[index + SW]))
 		{
 			// If the pawn started on rank 2
 			if (curr_square[1] == '2')
@@ -191,7 +289,7 @@ std::vector<std::string> Generate_Pawn_Moves(const Gamestate& g, const int index
 			}
 		}
 		// Repeat for SE
-		if (index % 8 != 7 && (isupper(g.board[index + SE]) || g.en_passant_target == Convert_to_Algebraic(index + SE)))
+		if (index % 8 != 7 && isupper(g.board[index + SE]))
 		{
 			// If the pawn started on rank 2
 			if (curr_square[1] == '2')
@@ -536,7 +634,7 @@ std::vector<std::string> Generate_Queen_Moves(const Gamestate& g, const int inde
 	return queen_moves;
 }
 
-std::vector<std::string> Generate_King_Moves(const Gamestate& g, const int index)
+std::vector<std::string> Generate_King_Moves(const Gamestate& g, const int index, const bool ignore_non_attacks)
 {
 	std::vector<std::string> king_moves;
 
@@ -592,8 +690,6 @@ std::vector<std::string> Generate_King_Moves(const Gamestate& g, const int index
 	{
 		int next_index = index + possible_moves[i];
 
-		// Here we need to ignore moves that put us in check // todo
-	
 		// Check if there's a piece at the new square
 		if (g.board[next_index] != ' ')
 		{
@@ -612,7 +708,73 @@ std::vector<std::string> Generate_King_Moves(const Gamestate& g, const int index
 		}
 	}
 
-	// Here we need to check for castling moves // todo
+	// If castling moves are not ignored
+	if (!ignore_non_attacks)
+	{
+		// Check the castles string
+		for (int i = 0; i < g.castles.length(); i++)
+		{
+			// If the king is white
+			if (isupper(g.board[index]))
+			{
+				// If 'K' is still part of the castles string and the kingside is clear
+				// (indexes 5, 6 = f1, g1)
+				if (g.castles[i] == 'K' && g.board[5] == ' ' && g.board[6] == ' ')
+				{
+					// If neither of those squares nor the king are under attack
+					if (!Square_Under_Attack(g, i, 'w') && !Square_Under_Attack(g, 5, 'w') && !Square_Under_Attack(g, 6, 'w'))
+					{
+						// Then kingside castling (e1g1) is valid
+						king_moves.push_back(curr_square + "g1");
+						std::cout << "added k-side white" << std::endl;
+					}
+				}
+
+				// If 'Q' is still part of the castles string and the queenside is clear
+				// (indexes 1, 2, 3 = b1, c1, d1)
+				if (g.castles[i] == 'Q' && g.board[1] == ' ' && g.board[2] == ' ' && g.board[3] == ' ')
+				{
+					// If none of those squares nor the king are under attack
+					if (!Square_Under_Attack(g, i, 'w') && !Square_Under_Attack(g, 1, 'w') && !Square_Under_Attack(g, 2, 'w') && !Square_Under_Attack(g, 3, 'w'))
+					{
+						// Then queenside castling (e1b1) is valid
+						king_moves.push_back(curr_square + "b1");
+						std::cout << "added q-side white" << std::endl;
+					}
+				}
+			}
+
+			// If the king is black
+			if (islower(g.board[index]))
+			{
+				// If 'k' is still part of the castles string and the kingside is clear
+				// (indexes 61, 62 = f8, g8)
+				if (g.castles[i] == 'k' && g.board[61] == ' ' && g.board[62] == ' ')
+				{
+					// If neither of those squares nor the king are under attack
+					if (!Square_Under_Attack(g, i, 'b') && !Square_Under_Attack(g, 61, 'b') && !Square_Under_Attack(g, 62, 'b'))
+					{
+						// Then kingside castling (e8g8) is valid
+						king_moves.push_back(curr_square + "g8");
+						std::cout << "added k-side black" << std::endl;
+					}
+				}
+
+				// If 'q' is still part of the castles string and the queenside is clear
+				// (indexes 57, 58, 59 = b8, c8, d8)
+				if (g.castles[i] == 'q' && g.board[57] == ' ' && g.board[58] == ' ' && g.board[59] == ' ')
+				{
+					// If none of those squares nor the king are under attack
+					if (!Square_Under_Attack(g, i, 'b') && !Square_Under_Attack(g, 57, 'b') && !Square_Under_Attack(g, 58, 'b') && !Square_Under_Attack(g, 59, 'b'))
+					{
+						// Then queenside castling (e8b8) is valid
+						king_moves.push_back(curr_square + "b8");
+						std::cout << "added q-side black" << std::endl;
+					}
+				}
+			}
+		}
+	}
 
 	return king_moves;
 }
@@ -631,49 +793,54 @@ std::vector<std::string> Generate_Player_Moves(const Gamestate& g, const char pl
 		// If the piece and player are the same color
 		if ((isupper(g.board[i]) && player_color == 'w') || (islower(g.board[i]) && player_color == 'b'))
 		{
-			// Determine what kind of piece it is, and generate its moves
-			// If piece is a pawn
-			if (g.board[i] == 'P' || g.board[i] == 'p')
-			{
-				// Get the new moves, then add them to the existing list
-				new_moves = Generate_Pawn_Moves(g, i);
-				valid_moves.insert(valid_moves.end(), new_moves.begin(), new_moves.end());
-			}
+			// Generate all the valid moves that piece can make
+			// We want to include non-attacking moves, so the last parameter must be false
+			new_moves = Generate_Piece_Moves(g, i, false);
 
-			// If piece is a bishop
-			else if (g.board[i] == 'B' || g.board[i] == 'b')
-			{
-				new_moves = Generate_Bishop_Moves(g, i);
-				valid_moves.insert(valid_moves.end(), new_moves.begin(), new_moves.end());
-			}
+			// Append the new moves to the total list
+			valid_moves.insert(valid_moves.end(), new_moves.begin(), new_moves.end());
+		}
+	}
 
-			// If piece is a rook
-			else if (g.board[i] == 'R' || g.board[i] == 'r')
-			{
-				new_moves = Generate_Rook_Moves(g, i);
-				valid_moves.insert(valid_moves.end(), new_moves.begin(), new_moves.end());
-			}
+	// Now that we have all the available valid moves, we need to check if any of these moves
+	// will allow our king to be under attack
 
-			// If piece is a knight
-			else if (g.board[i] == 'N' || g.board[i] == 'n')
-			{
-				new_moves = Generate_Knight_Moves(g, i);
-				valid_moves.insert(valid_moves.end(), new_moves.begin(), new_moves.end());
-			}
+	// Simulate every move we have generated thus far to see if any of them will put the king in danger
+	Gamestate sim_state(g);
 
-			// If piece is a queen
-			else if (g.board[i] == 'Q' || g.board[i] == 'q')
-			{
-				new_moves = Generate_Queen_Moves(g, i);
-				valid_moves.insert(valid_moves.end(), new_moves.begin(), new_moves.end());
-			}
+	std::cout << "Starting sim state:\n";
+	sim_state.Print();
 
-			// If piece is a king
-			else if (g.board[i] == 'K' || g.board[i] == 'k')
+	// Make a copy of the valid moves so we can iterate and delete simultaneously
+	std::vector<std::string> iter_moves = valid_moves;
+
+	for (int i = 0; i < iter_moves.size(); i++)
+	{
+		std::cout << "Checking move " << iter_moves[i] << std::endl;
+		std::cout << "\n";
+
+		// Simulate the move from the current state
+		sim_state = Simulate_Move(g, iter_moves[i]);
+		// sim_state.Print();
+
+		// Find this player's king's square index
+		int king_index;
+		for (int j = 0; j < sim_state.board.size(); j++)
+		{
+			if ((sim_state.board[j] == 'K' && player_color == 'w') || (sim_state.board[j] == 'k' && player_color == 'b'))
 			{
-				new_moves = Generate_King_Moves(g, i);
-				valid_moves.insert(valid_moves.end(), new_moves.begin(), new_moves.end());
+				king_index = j;
 			}
+		}
+		// std::cout << "king index is " << king_index << std::endl;
+
+
+		// Check if the king's square is under attack in the new state
+		if (Square_Under_Attack(sim_state, king_index, player_color))
+		{
+			// The king is under attack, so this move is not valid - remove it
+			std::cout << "Removing move " << iter_moves[i] << " because it endangers the king.\n";
+			valid_moves.erase(std::remove(valid_moves.begin(), valid_moves.end(), iter_moves[i]), valid_moves.end());
 		}
 	}
 
@@ -681,10 +848,117 @@ std::vector<std::string> Generate_Player_Moves(const Gamestate& g, const char pl
 	return valid_moves;
 }
 
-// make a function to generate moves for a single piece // todo
-// make functions to check for checks/checkmates/draws // todo
-// make a function to update the gamestate given some move // todo
-// 		(could use this to check for checks/mates/draws)
+std::vector<std::string> Generate_Piece_Moves(const Gamestate& g, const int index, const bool ignore_non_attacks)
+{
+	// Store the valid moves
+	std::vector<std::string> moves;
 
+	// Determine what kind of piece it is, and generate its moves
+	// If piece is a pawn
+	if (g.board[index] == 'P' || g.board[index] == 'p')
+	{
+		// Get the new moves, then copy them to the existing list
+		moves = Generate_Pawn_Moves(g, index, ignore_non_attacks);
+	}
+
+	// If piece is a bishop
+	else if (g.board[index] == 'B' || g.board[index] == 'b')
+	{
+		moves = Generate_Bishop_Moves(g, index);
+	}
+
+	// If piece is a rook
+	else if (g.board[index] == 'R' || g.board[index] == 'r')
+	{
+		moves = Generate_Rook_Moves(g, index);
+	}
+
+	// If piece is a knight
+	else if (g.board[index] == 'N' || g.board[index] == 'n')
+	{
+		moves = Generate_Knight_Moves(g, index);
+	}
+
+	// If piece is a queen
+	else if (g.board[index] == 'Q' || g.board[index] == 'q')
+	{
+		moves = Generate_Queen_Moves(g, index);
+	}
+
+	// If piece is a king
+	else if (g.board[index] == 'K' || g.board[index] == 'k')
+	{
+		moves = Generate_King_Moves(g, index, ignore_non_attacks);
+	}
+	else
+	{
+		std::cout << "There is no piece on square " << Convert_to_Algebraic(index) << ".\n";
+	}
+
+	return moves;
+}
+
+bool Square_Under_Attack(const Gamestate& g, const int index, const char player_color)
+{
+	// Iterate over every square on the board
+	for (int i = 0 ; i < g.board.size(); i++)
+	{
+		// If there is a piece
+		if (g.board[i] != ' ')
+		{
+			// If the piece is an enemy
+			if ((player_color == 'w' && islower(g.board[i])) || (player_color == 'b' && isupper(g.board[i])))
+			{
+				// Generate every valid move for that piece, ignoring straight pawn moves, en passant moves, and castling
+				std::vector<std::string> moves = Generate_Piece_Moves(g, i, true);
+
+				// std::cout << "All attacking moves for " << g.board[i] << " on " << Convert_to_Algebraic(i) << ":" << std::endl;
+				// for (int n = 0; n < moves.size(); n++)
+				// {
+				// 	std::cout << moves[n] << std::endl;
+				// }
+
+				// Check if the ending square of any of those moves is our index square
+				for (int j = 0; j < moves.size(); j++)
+				{
+					// Get the target square from the move (characters 3 & 4)
+					std::string target = moves[j].substr(2,2);
+					// std::cout << "target: " << target << std::endl;
+
+					if (target == Convert_to_Algebraic(index))
+					{
+						// The index square is under attack
+						return true;
+					}
+				}
+			}
+		}
+	}
+
+	// If we get here, then the square is not under attack
+	return false;
+}
+
+Gamestate Simulate_Move(const Gamestate& g, const std::string move)
+{
+	// For now i just want to update the board. other updates will come later // todo
+	// also will deal with promotions later??
+
+	// Create a copy of the gamestate
+	Gamestate new_state(g);
+
+	// Start square is first 2 chars, target square is next 2 chars
+	// Convert the squares to board indicies to be used later
+	int src_sq = Convert_to_Index(move.substr(0,2));
+	int dest_sq = Convert_to_Index(move.substr(2,2));
+
+	// Copy the contents of the src_sq to the dest_sq
+	new_state.board[dest_sq] = new_state.board[src_sq];
+
+	// The src_sq then becomes empty
+	new_state.board[src_sq] = ' ';
+
+	return new_state;
+}
 
 #endif

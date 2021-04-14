@@ -14,7 +14,7 @@ public:
 										// is represented by a different character ex) 'k' = black king, 'N' = white knight
 
 	char next_turn;						// 'w' = white, 'b' = black
-	std::string castles;				// castles available to each player ex) "KQkq" or "K--q"
+	std::string castles;				// castles available to each player ex) "KQkq" or "Kq"
 	std::string en_passant_target;		// where en passant is possible ex) "c3" or "-"
 
 	int halfmove_clock;					// halfmoves since last capture, promotion, or pawn move
@@ -112,6 +112,21 @@ public:
 		en_passant_target = splits[3];
 		halfmove_clock = atoi(splits[4].c_str());
 		fullmove_counter = atoi(splits[5].c_str());
+	}
+
+	// Overload assignment operator to deep copy class objects
+	void operator =(const Gamestate& g)
+	{
+		board = g.board;
+
+		next_turn = g.next_turn;
+		castles = g.castles;
+		en_passant_target = g.en_passant_target;
+
+		halfmove_clock = g.halfmove_clock;
+		fullmove_counter = g.fullmove_counter;
+
+		last_eight_moves = g.last_eight_moves;
 	}
 
 	// Output the board data and other state variables to the console
