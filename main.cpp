@@ -38,18 +38,6 @@ int main()
 	// 	std::cout << pawns[i] << "\n";
 	// }
 
-<<<<<<< HEAD
-=======
-	std::vector<std::string> all_white = Generate_Player_Moves(from_fen, 'w');
-	for (int i = 0; i < all_white.size(); i++)
-	{
-		std::cout << all_white[i] << "\n";
-	}
-	std::cout << std::endl;
->>>>>>> d9aea54511382cfa18c6d85c003c9c7bee4f83ff
-
-
-
 	std::string start_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 	std::string draw = "7k/8/6Q1/8/8/8/8/7K b - - 1 1";
 	std::string white_mate = "7k/8/6QK/8/8/8/8/8 w - - 1 1";
@@ -195,10 +183,6 @@ int main()
 
 	// Gamestate n_stt = Simulate_Move(n_st, "e4e2");
 	// n_stt.Print();
-
-
-	std::cout << "Random white move: " << Get_Random_Move(all_white) << "\n";
-	std::cout << "Random black move: " << Get_Random_Move(all_black) << "\n";
 
 	return 0;
 }

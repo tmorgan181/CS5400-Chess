@@ -5,7 +5,8 @@
 
 #include <vector>
 
-#include <cstdlib> // isupper, islower, rand, time
+#include <cstdlib> // isupper, islower, rand
+#include <ctime> // time
 #include <algorithm> // std::remove
 
 
