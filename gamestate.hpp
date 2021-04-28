@@ -2,7 +2,6 @@
 #define GAMESTATE_HPP
 
 #include <vector>
-#include <queue>
 #include <cstdlib> // isdigit
 #include <sstream> // stringstream
 
@@ -20,7 +19,7 @@ public:
 	int halfmove_clock;					// halfmoves since last capture, promotion, or pawn move
 	int fullmove_counter;				// current turn
 
-	std::queue<std::string> last_eight_moves;	// last eight full moves made (UCI format)
+	std::vector<std::string> last_eight_moves;	// last eight half moves made (UCI format)
 
 	// Default constructor uses start state FEN
 	Gamestate()
@@ -149,11 +148,16 @@ public:
 		std::cout << "\n";
 
 		// Output other variables
-		std::cout << "Current turn: " << fullmove_counter << "/" << next_turn << "\n";
+		std::cout << "Next Turn: " << fullmove_counter << "/" << next_turn << "\n";
 		std::cout << "Halfmove Clock: " << halfmove_clock << "\n";
 		std::cout << "Castles: " << castles << "\n";
 		std::cout << "En Passant: " << en_passant_target << "\n";
-		std::cout << "\n";
+		std::cout << "Last 8 Halfmoves: { ";
+		for (int i = 0; i < last_eight_moves.size(); i++)
+		{
+			std::cout << last_eight_moves[i] << (i != last_eight_moves.size() - 1 ? ", " : "");
+		}
+		std::cout << " }\n\n";
 
 		return;
 	}

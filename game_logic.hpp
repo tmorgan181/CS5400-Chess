@@ -4,7 +4,8 @@
 #include "gamestate.hpp"
 
 #include <vector>
-#include <cstdlib> // isupper, islower
+#include <cstdlib> // isupper, islower, rand
+#include <ctime>	// time
 #include <algorithm> // std::remove
 
 
@@ -16,14 +17,14 @@
 // ----------
 // |-9|-8|-7|
 // ----------
-const int NW = 7;
-const int N = 8;
 const int NE = 9;
-const int W = -1;
+const int N = 8;
+const int NW = 7;
 const int E = 1;
-const int SW = -9;
-const int S = -8;
+const int W = -1;
 const int SE = -7;
+const int S = -8;
+const int SW = -9;
 
 
 //////// Function Declarations ////////
@@ -68,6 +69,28 @@ bool Square_Under_Attack(const Gamestate& g, const int index, const char player_
 
 // Given some gamestate and a move to make, update the gamestate accordingly
 Gamestate Simulate_Move(const Gamestate& g, const std::string move);
+
+// Given a list of possible moves, select one at random and return it
+std::string Get_Random_Move(const std::vector<std::string> all_moves);
+
+// Check if the given gamestate is at a draw
+bool Game_Draw(const Gamestate& g);
+
+// Determine what caused a gamestate to reach a draw
+// return: std::string containing reason for draw
+std::string Draw_Type(const Gamestate& g);
+
+// Check if white is checkmated (no moves and in check)
+bool White_Checkmated(const Gamestate& g);
+
+// Check if black is checkmated
+bool Black_Checkmated(const Gamestate& g);
+
+// Check if either king is in checkmate
+bool Game_Checkmate(const Gamestate& g);
+
+// Check if there is not enough material to checkmate
+bool Insufficient_Material(const Gamestate& g);
 
 
 //////// Function Implementations ////////
@@ -726,7 +749,6 @@ std::vector<std::string> Generate_King_Moves(const Gamestate& g, const int index
 					{
 						// Then kingside castling (e1g1) is valid
 						king_moves.push_back(curr_square + "g1");
-						std::cout << "added k-side white" << std::endl;
 					}
 				}
 
@@ -739,7 +761,6 @@ std::vector<std::string> Generate_King_Moves(const Gamestate& g, const int index
 					{
 						// Then queenside castling (e1b1) is valid
 						king_moves.push_back(curr_square + "b1");
-						std::cout << "added q-side white" << std::endl;
 					}
 				}
 			}
@@ -756,7 +777,6 @@ std::vector<std::string> Generate_King_Moves(const Gamestate& g, const int index
 					{
 						// Then kingside castling (e8g8) is valid
 						king_moves.push_back(curr_square + "g8");
-						std::cout << "added k-side black" << std::endl;
 					}
 				}
 
@@ -769,7 +789,6 @@ std::vector<std::string> Generate_King_Moves(const Gamestate& g, const int index
 					{
 						// Then queenside castling (e8b8) is valid
 						king_moves.push_back(curr_square + "b8");
-						std::cout << "added q-side black" << std::endl;
 					}
 				}
 			}
@@ -931,24 +950,486 @@ bool Square_Under_Attack(const Gamestate& g, const int index, const char player_
 
 Gamestate Simulate_Move(const Gamestate& g, const std::string move)
 {
-	// For now i just want to update the board. other updates will come later // todo
-	// also will deal with promotions later??
+	// Check if a move was given
+	if (move.length() < 4)
+	{
+		std::cout << "\nInvalid move given to Simulate_Move()!\n";
+		exit(1);
+	}
 
 	// Create a copy of the gamestate
 	Gamestate new_state(g);
 
-	// Start square is first 2 chars, target square is next 2 chars
+	// Start square is first 2 chars, target square are the next 2, and promotion if needed is the last
 	// Convert the squares to board indicies to be used later
 	int src_sq = Convert_to_Index(move.substr(0,2));
-	int dest_sq = Convert_to_Index(move.substr(2,2));
+	int dest_sq = Convert_to_Index(move.substr(2,move.length()-2));
 
-	// Copy the contents of the src_sq to the dest_sq
-	new_state.board[dest_sq] = new_state.board[src_sq];
+
+	//// Update the board ////
+
+	// Check if this is a promotion move
+	// std::cout << "Source: " << g.board[src_sq] << std::endl;
+	// std::cout << "Move 3: " << move[3] << std::endl;
+	// std::cout << "Move 4: " << move[1] << std::endl;
+
+
+	if (g.board[src_sq] == 'P' && move[3] == '8')
+	{
+		// White promotion
+		new_state.board[dest_sq] = char(std::toupper(move[4]));
+	}
+	else if (g.board[src_sq] == 'p' && move[3] == '1')
+	{
+		// Black promotion
+		new_state.board[dest_sq] = char(std::tolower(move[4]));
+	}
+	else
+	{
+		// Not a promotion
+		// Copy the contents of the src_sq to the dest_sq
+		new_state.board[dest_sq] = new_state.board[src_sq];
+		// std::cout << "No promo this time.\n";
+	}
 
 	// The src_sq then becomes empty
 	new_state.board[src_sq] = ' ';
 
+
+	//// Other state variables ////
+
+	/* Whose turn next */
+	new_state.next_turn = (isupper(new_state.board[dest_sq]) ? 'b' : 'w');
+
+
+	/* Which castles are still available */
+	std::string new_castles = "";
+
+	for (int i = 0; i < g.castles.length(); i++)
+	{
+		// Castle is still valid if:
+		// 1. It was valid in the last gamestate
+		// 2. The king is not moving
+		// 3. The corresponding side's rook is still alive and not moving
+
+		// White kingside:
+		// 1. //
+		if (g.castles[i] == 'K')
+		{
+			// 2. //
+			if (move[0] != 'e' || move[1] != '1')
+			{
+				// 3. //
+				if ((move[0] != 'h' || move[1] != '1') && new_state.board[Convert_to_Index("h1")] == 'R')
+				{
+					// All conditions satisfied, this castle is possible
+					new_castles += 'K';
+				}
+			}
+		}
+
+		// White queenside:
+		else if (g.castles[i] == 'Q')
+		{
+			if (move[0] != 'e' || move[1] != '1')
+			{
+				if ((move[0] != 'a' || move[1] != '1') && new_state.board[Convert_to_Index("a1")] == 'R')
+				{
+					// All conditions satisfied, this castle is possible
+					new_castles += 'Q';
+				}
+			}
+		}
+
+		// Black kingside:
+		else if (g.castles[i] == 'k')
+		{
+			if (move[0] != 'e' || move[1] != '8')
+			{
+				if ((move[0] != 'h' || move[1] != '8') && new_state.board[Convert_to_Index("h8")] == 'r')
+				{
+					// All conditions satisfied, this castle is possible
+					new_castles += 'k';
+				}
+			}
+		}
+
+		// Black queenside
+		else if (g.castles[i] == 'q')
+		{
+			if (move[0] != 'e' || move[1] != '8')
+			{
+				if ((move[0] != 'a' || move[1] != '8') && new_state.board[Convert_to_Index("a8")] == 'r')
+				{
+					// All conditions satisfied, this castle is possible
+					new_castles += 'q';
+				}
+			}
+		}
+	}
+
+	// Check if no castles are available
+	if (new_castles == "")
+	{
+		new_castles = "-";
+	}
+
+	// Update the new state
+	new_state.castles = new_castles;
+
+
+	/* Which square is en passant target */
+	// Check if the move is a 2-square pawn move
+	bool ep_move = false;
+
+	if (new_state.board[dest_sq] == 'P')
+	{
+		// White 2-sq move
+		if (move[1] == '2' && move[3] == '4')
+		{
+			ep_move = true;
+
+			// White pawn moved 2, so the en passant square is one rank MORE than the source
+			std::string white_ep = "";
+			white_ep += char(move[0]);
+			white_ep += char(move[1] + 1);
+			new_state.en_passant_target = white_ep;
+		}
+	}
+	else if (new_state.board[dest_sq] == 'p')
+	{
+		// Black 2-sq move
+		if (move[1] == '7' && move[3] == '5')
+		{
+			ep_move = true;
+
+			// Black pawn moved 2, so the en passant target is one rank LESS than the source
+			std::string black_ep = "";
+			black_ep += char(move[0]);
+			black_ep += char(move[1] - 1);
+			new_state.en_passant_target = black_ep;
+		}
+	}
+	
+	// No 2-sq move
+	if (!ep_move)
+	{
+		new_state.en_passant_target = "-";
+	}
+
+
+	/* Update halfmove clock */
+	// Reset if this is a capturing move
+	if ((isupper(g.board[src_sq]) && islower(g.board[dest_sq])) || (islower(g.board[src_sq]) && isupper(g.board[dest_sq])))
+	{
+		new_state.halfmove_clock = 0;
+	}
+	// Reset if this is a pawn move/promotion
+	else if  (g.board[src_sq] == 'P' || g.board[src_sq] == 'p')
+	{
+		new_state.halfmove_clock = 0;
+	}
+	// Otherwise increment the clock
+	else
+	{
+		new_state.halfmove_clock = g.halfmove_clock + 1;
+	}
+
+
+	/* Update fullmove counter */
+	// Increment if its white's turn next
+	if (new_state.next_turn == 'w')
+	{
+		new_state.fullmove_counter = g.fullmove_counter + 1;
+	}
+	// Else copy the value
+	else
+	{
+		new_state.fullmove_counter = g.fullmove_counter;
+	}
+
+
+	/* Track the last 8 moves */
+	new_state.last_eight_moves = g.last_eight_moves;
+
+	// Keep the list size to 8
+	if (new_state.last_eight_moves.size() >= 8)
+	{
+		// Remove the oldest move
+		new_state.last_eight_moves.erase(new_state.last_eight_moves.begin());
+	}
+
+	// Add the new half move
+	new_state.last_eight_moves.push_back(move);
+
+	// Return the updated state
 	return new_state;
 }
+
+std::string Get_Random_Move(const std::vector<std::string> all_moves)
+{
+	// Seed random
+	srand(time(NULL));
+
+	// Get a random number between 0 and (length - 1)
+	int i = rand() % all_moves.size();
+
+	// Return the move at random index i
+	return all_moves[i];
+}
+
+bool Game_Draw(const Gamestate& g)
+{
+	// A draw occurs when:
+
+	// 1. The last eight moves have not had a capture or pawn move (halfmove clock >= 16)
+	// AND
+	// 2. The first half of the last eight moves are identical to the last half of the last eight moves
+
+	// OR
+	// 3. The player who is up next does not have any valid moves and is not checkmated
+
+	// OR
+	// 4. There is not enough material for either player to checkmate // todo
+
+	bool draw_conditions = true;
+
+	// 1. Check the halfmove clock
+	if (g.halfmove_clock < 16)
+	{
+		draw_conditions = false;
+	}
+
+	// 2. Check the last 8 halfmoves
+	if (g.last_eight_moves.size() != 8)
+	{
+		// Not enough moves in the queue
+		draw_conditions = false;
+	}
+	else
+	{
+		// Check each pair for differences
+		for (int i = 0; i < 4; i++)
+		{
+			if (g.last_eight_moves[i] != g.last_eight_moves[i+4])
+			{
+				draw_conditions = false;
+				break;
+			}
+		}
+	}
+
+
+	// 3. Check if the game is not checkmate and the next player has no valid moves
+	bool no_moves = !Game_Checkmate(g) && Generate_Player_Moves(g, g.next_turn).empty();
+
+
+	// 4. There is not enough material to checkmate
+	bool insufficient_material = Insufficient_Material(g);
+
+
+	// Put it all together
+	bool draw = draw_conditions || no_moves || insufficient_material;
+
+	return draw;
+}
+
+std::string Draw_Type(const Gamestate& g)
+{
+	bool draw_conditions = true;
+
+	// 1. Check the halfmove clock
+	if (g.halfmove_clock < 16)
+	{
+		draw_conditions = false;
+	}
+
+	// 2. Check the last 8 halfmoves
+	if (g.last_eight_moves.size() != 8)
+	{
+		// Not enough moves in the queue
+		draw_conditions = false;
+	}
+	else
+	{
+		// Check each pair for differences
+		for (int i = 0; i < 4; i++)
+		{
+			if (g.last_eight_moves[i] != g.last_eight_moves[i+4])
+			{
+				draw_conditions = false;
+				break;
+			}
+		}
+	}
+
+
+	// 3. Check if the game is not checkmate and the next player has no valid moves
+	bool no_moves = !Game_Checkmate(g) && Generate_Player_Moves(g, g.next_turn).empty();
+
+
+	// 4. There is not enough material to checkmate
+	bool insufficient_material = Insufficient_Material(g);
+
+	// Return whichever triggered first
+	return (draw_conditions ? "Draw Conditions." : (no_moves ? "No Moves." : "Insufficient Material!"));
+}
+
+bool White_Checkmated(const Gamestate& g)
+{
+	// Get the position of the white king
+	int king_index = 0;
+
+	for (int i = 0; i < g.board.size(); i++)
+	{
+		if (g.board[i] == 'K')
+		{
+			king_index = i;
+		}
+	}
+
+	// Check if the king is under attack
+	bool mated = false;
+	if (Square_Under_Attack(g, king_index, 'w'))
+	{
+		// Check if there are no valid moves
+		if (Generate_Player_Moves(g, 'w').empty())
+		{
+			// The white king is checkmated
+			mated = true;
+		}
+	}
+
+	return mated;
+}
+
+bool Black_Checkmated(const Gamestate& g)
+{
+	// Get the position of the black king
+	int king_index = 0;
+
+	for (int i = 0; i < g.board.size(); i++)
+	{
+		if (g.board[i] == 'k')
+		{
+			king_index = i;
+		}
+	}
+
+	// Check if the king is under attack
+	bool mated = false;
+	if (Square_Under_Attack(g, king_index, 'b'))
+	{
+		// Check if there are no valid moves
+		if (Generate_Player_Moves(g, 'b').empty())
+		{
+			// The black king is checkmated
+			mated = true;
+		}
+	}
+
+	return mated;
+}
+
+bool Game_Checkmate(const Gamestate& g)
+{
+	return g.next_turn == 'w' ? White_Checkmated(g) : Black_Checkmated(g);
+}
+
+bool Insufficient_Material(const Gamestate& g)
+{
+	bool insufficient_material = true;
+
+	int knights = 0;
+	int light_bishops = 0;
+	int dark_bishops = 0;
+
+	// Check every square on the board
+	for (int i = 0; i < g.board.size(); i++)
+	{
+		// Queen can cause checkmate
+		if (g.board[i] == 'Q' || g.board[i] == 'q')
+		{
+			insufficient_material = false;
+			break;
+		}
+
+		// Rook can cause checkmate
+		else if (g.board[i] == 'R' || g.board[i] == 'r')
+		{
+			insufficient_material = false;
+			break;
+		}
+
+		// Pawn can cause checkmate (eventually)
+		else if (g.board[i] == 'P' || g.board[i] == 'p')
+		{
+			insufficient_material = false;
+			break;
+		}
+
+		// Knights need at least 2
+		else if (g.board[i] == 'N' || g.board[i] == 'n')
+		{
+			knights++;
+			if (knights >= 2)
+			{
+				insufficient_material = false;
+				break;
+			}
+		}
+
+		// Bishops need at least 2, and also at least one pair of opposite color square
+		else if (g.board[i] == 'B' || g.board[i] == 'b')
+		{
+			// Check if the rank is even
+			char c = Convert_to_Algebraic(i)[1];
+			if (c == '2' || c == '4' || c == '6' || c == '8')
+			{
+				// Square index % 2 == 0 for dark squares on even ranks
+				if (i % 2 == 0)
+				{
+					dark_bishops++;
+				}
+				// Square index % 2 == 1 for light squares on even ranks
+				else
+				{
+					light_bishops++;
+				}
+			}
+			// Else it's on an odd rank
+			else
+			{
+				// Square index % 2 == 1 for dark squares on odd ranks
+				if (i % 2 == 1)
+				{
+					dark_bishops++;
+				}
+				// Square index % 2 == 0 for light squares on odd ranks
+				else
+				{
+					light_bishops++;
+				}
+			}
+
+			// Check if there's enough to checkmate
+			if (light_bishops != 0 && dark_bishops != 0)
+			{
+				insufficient_material = false;
+				break;
+			}
+		}
+
+		// 1 bishop and 1 knight can cause checkmate
+		if ((light_bishops + dark_bishops) != 0 && knights != 0)
+		{
+			insufficient_material = false;
+			break;
+		}
+	}
+
+	return insufficient_material;
+}
+
 
 #endif

@@ -2,11 +2,11 @@
 
 #include "gamestate.hpp"
 #include "game_logic.hpp"
+#include "algorithms.hpp"
 
 
 int main()
 {	
-	std::string start_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 	std::string move_2 = "rnbqkbnr/ppp1pppp/8/3pP3/8/5N2/PPPP1PPP/RNBQKB1R b KQkq d6 1 2";
 	std::string pawn_promo = "rnbqkb1r/p1pppp1p/8/2n3P1/8/2N5/PpPP1PPP/R1BQKBNR w KQkq - 0 1";
@@ -25,10 +25,7 @@ int main()
 
 	std::string castl = "8/8/8/8/8/5q2/8/R3K2R w KQkq - 0 1";
 
-	std::string check = "8/8/8/8/8/5q2/R7/5B1K w - - 0 1";
 
-	Gamestate from_fen(start_fen);
-	from_fen.Print();
 
 
 	// Generate pawn moves from a2
@@ -41,17 +38,137 @@ int main()
 	// 	std::cout << pawns[i] << "\n";
 	// }
 
-	std::vector<std::string> all_white = Generate_Player_Moves(from_fen, 'w');
-	for (int i = 0; i < all_white.size(); i++)
+
+
+
+	std::string start_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+	std::string draw = "7k/8/6Q1/8/8/8/8/7K b - - 1 1";
+	std::string white_mate = "7k/8/6QK/8/8/8/8/8 w - - 1 1";
+	std::string black_mate = "8/8/8/8/8/5q1k/8/7K w - - 1 1";
+
+	std::string bish_draw = "6bk/8/8/8/8/8/5N2/7K w - - 0 1";
+
+	std::string mate_in_2 = "7k/8/8/8/8/5q1r/8/5K2 w - - 1 1";
+
+	std::string rook_weird = "3B4/8/5R2/4kN1p/P5p1/8/6p1/3RKN2 w - - 0 1";
+
+	std::string mate_in_3 = "6nk/8/2Q4p/6R1/8/7K/8/8 w - - 0 2";
+
+	Gamestate game_state(start_fen);
+	game_state.Print();
+	std::cout << "\n-------STARTING THE GAME!!!-------\n\n";
+
+	// Take turns playing
+	bool stop = false;
+	int count = 0;
+	while (!stop)
 	{
-		std::cout << all_white[i] << "\n";
+		std::string new_move = "";
+
+		// Check if we have reached the end of the game
+		if (Game_Draw(game_state))	// Draw
+		{
+			std::cout << "\n-------GAME OVER!!!-------\n";
+			std::cout << "It's a Draw! - " << Draw_Type(game_state) << "\n";
+			break;
+		}
+		else if (White_Checkmated(game_state))	// Black wins
+		{
+			std::cout << "\n-------GAME OVER!!!-------\n";
+			std::cout << "Black wins by Checkmate!\n";
+			break;
+		}
+		else if (Black_Checkmated(game_state))	// White wins
+		{
+			std::cout << "\n-------GAME OVER!!!-------\n";
+			std::cout << "White wins by Checkmate!\n";
+			break;
+		}
+		else	// Else keep going
+		{
+			std::cout << "\n---------- TURN: " << game_state.fullmove_counter << " / " << game_state.next_turn << " ----------\n";
+
+			// // Get moves for white via ID_DL_Minimax
+			// if (game_state.next_turn == 'w')	// White's move
+			// {
+			// 	new_move = ID_DL_Minimax(game_state);
+			// }
+
+			// // Use a set of given moves for white
+			// if (game_state.next_turn == 'w')
+			// {
+			// 	new_move = "g6g7";
+			// }
+
+			// // Get moves for white randomly
+			// if (game_state.next_turn == 'w')
+			// {
+			// 	std::vector<std::string> all_white = Generate_Player_Moves(game_state, 'w');
+			// 	new_move = Get_Random_Move(all_white);
+			// }
+
+			// Get moves for white via DL_Minimax
+			if (game_state.next_turn == 'w')
+			{
+				new_move = ID_DL_Minimax(game_state);
+				// new_move = DL_Minimax_Choice(game_state, 1);
+			}
+
+			// // Use a set of given moves for black
+			// else
+			// {
+			// 	new_move = "f3g2";
+			// }
+
+			// // Get moves for black randomly
+			// else
+			// {
+			// 	std::vector<std::string> all_black = Generate_Player_Moves(game_state, 'b');
+			// 	new_move = Get_Random_Move(all_black);
+			// }
+
+			// Get moves for black via DL_Minimax
+			else
+			{
+				new_move = ID_DL_Minimax(game_state);
+				// new_move = DL_Minimax_Choice(game_state, 1);
+			}
+		}
+
+		// // Figure out what the best move is for this state
+		// std::string best_move = DL_Minimax_Choice(game_state, 1);
+		// std::cout << "The best move for " << game_state.next_turn << " is " << best_move << "\n";
+
+		// Update the game state with the new move
+		std::cout << "Player " << game_state.next_turn << " choses move " << new_move << "\n";
+		game_state = Simulate_Move(game_state, new_move);
+		game_state.Print();
+
+		// if (game_state.next_turn == 'w')
+		// {
+		// 	std::cout << "Min: " 
+		// }
+
+		int score = hValue_Material(game_state);
+		std::cout << "Material: " << (score > 0 ? "+" : "") << score << "\n";
+
+		int utility = Utility_Value(game_state);
+		if (utility == 1)
+			std::cout << "Utility: N/A\n";
+		else
+			std::cout << "Utility: " << utility << "\n";
+
+		std::cout << "\n\n";
+
+		// Only run a number of turns
+		count++;
+		if (count/2 >= 300)
+		{
+			stop = true;
+			std::cout << "\nReached the turn limit!\n";
+		}
 	}
 
-	std::vector<std::string> all_black = Generate_Player_Moves(from_fen, 'b');
-	for (int i = 0; i < all_black.size(); i++)
-	{
-		std::cout << all_black[i] << "\n";
-	}
 
 
 	// std::vector<std::string> a2_moves = Generate_Piece_Moves(from_fen, Convert_to_Index("b5"), false);
